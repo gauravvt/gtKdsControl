@@ -276,24 +276,68 @@
     <script>
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz4mwiT8I69g9Uv2BVZUbETP3aS2-aSGUzLO5mpTPktFL95I45X_GigPACKQzKmIf5T/exec";
 
-        // Updated Passwords: 4 digits each for smooth entry
         const PARENT_PASSWORD = "6202";
         const KID_PASSWORDS = {
             "Avi": "9812",
             "Ani": "2468"
         };
 
-        let currentRole = null; // 'Parent' or 'Kid'
-        let selectedKid = null; // 'Avi' or 'Ani'
+        let currentRole = null; 
+        let selectedKid = null; 
         let enteredPin = "";
         let cloudRecords = [];
 
-        // Timer state variables
-        let timerSecondsLeft = 60 * 60; // 1 hour max default
+        let timerSecondsLeft = 60 * 60; 
         let timerInterval = null;
         let sessionActive = false;
 
-// ... existing code ... -->
+        window.addEventListener('DOMContentLoaded', () => {
+            fetchSheetData();
+            setupTvRemoteKeyboardListeners();
+            if (window.lucide) lucide.createIcons();
+        });
+
+        function fetchSheetData() {
+            const statusEl = document.getElementById('system-status');
+            if (statusEl) {
+                statusEl.innerText = "Connecting to Google Sheets Backend...";
+                statusEl.className = "text-xs text-amber-400 font-medium";
+            }
+
+            fetch(WEB_APP_URL)
+                .then(response => response.json())
+                .then(res => {
+                    if (res.result === "success") {
+                        cloudRecords = res.data || []; 
+                        if (statusEl) {
+                            statusEl.innerText = "Connected to Google Sheets Backend ✔";
+                            statusEl.className = "text-xs text-emerald-400 font-medium";
+                        }
+                    } else {
+                        if (statusEl) {
+                            statusEl.innerText = "Backend error: " + res.message;
+                            statusEl.className = "text-xs text-rose-400 font-medium";
+                        }
+                    }
+                })
+                .catch(err => {
+                    console.error("Fetch failed:", err);
+                    if (statusEl) {
+                        statusEl.innerText = "Connection failed (Check network/CORS)";
+                        statusEl.className = "text-xs text-rose-400 font-medium";
+                    }
+                });
+        }
+
+        function getYesterdayDateStr() {
+            const d = new Date();
+            d.setDate(d.getDate() - 1);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
         function showScreen(screenId) {
             ['screen-role-select', 'screen-pin-entry', 'screen-kid-select', 'screen-tv-decision', 'screen-parent-dashboard'].forEach(id => {
                 document.getElementById(id).classList.add('hidden');
@@ -311,7 +355,100 @@
                 if (window.lucide) lucide.createIcons();
             }, 50);
         }
-// ... existing code ... -->
+
+        function selectRole(role) {
+            currentRole = role;
+            enteredPin = "";
+            updatePinDots();
+            document.getElementById('pin-error-msg').innerText = "";
+
+            if (role === 'Parent') {
+                document.getElementById('pin-title').innerText = "Enter Parent PIN";
+                document.getElementById('pin-subtitle').innerText = "Password: 6202";
+                showScreen('screen-pin-entry');
+            } else {
+                showScreen('screen-kid-select');
+            }
+        }
+
+        function selectKidProfile(kidName) {
+            selectedKid = kidName;
+            currentRole = 'Kid';
+            enteredPin = "";
+            updatePinDots();
+            document.getElementById('pin-error-msg').innerText = "";
+            document.getElementById('pin-title').innerText = `Enter ${kidName}'s PIN`;
+            document.getElementById('pin-subtitle').innerText = `Password for ${kidName}`;
+            showScreen('screen-pin-entry');
+        }
+
+        function backToRoleSelect() {
+            currentRole = null;
+            selectedKid = null;
+            enteredPin = "";
+            showScreen('screen-role-select');
+        }
+
+        function appendPin(digit) {
+            if (enteredPin.length < 4) {
+                enteredPin += digit;
+                updatePinDots();
+                if (enteredPin.length === 4) {
+                    setTimeout(verifyPinCode, 150);
+                }
+            }
+        }
+
+        function clearPin() {
+            enteredPin = "";
+            updatePinDots();
+            document.getElementById('pin-error-msg').innerText = "";
+        }
+
+        function backspacePin() {
+            if (enteredPin.length > 0) {
+                enteredPin = enteredPin.substring(0, enteredPin.length - 1);
+                updatePinDots();
+            }
+        }
+
+        function updatePinDots() {
+            for (let i = 1; i <= 4; i++) {
+                const dot = document.getElementById(`pin-d${i}`);
+                if (i <= enteredPin.length) {
+                    dot.classList.add('active');
+                } else {
+                    dot.classList.remove('active');
+                }
+            }
+        }
+
+        function verifyPinCode() {
+            if (currentRole === 'Parent') {
+                if (enteredPin === PARENT_PASSWORD) {
+                    document.getElementById('header-user-info').classList.remove('hidden');
+                    document.getElementById('current-logged-user').innerText = "Logged in: Parent";
+                    evaluateParentDashboard();
+                    showScreen('screen-parent-dashboard');
+                } else {
+                    document.getElementById('pin-error-msg').innerText = "Incorrect Parent PIN!";
+                    enteredPin = "";
+                    updatePinDots();
+                }
+            } else if (currentRole === 'Kid') {
+                const expectedPin = KID_PASSWORDS[selectedKid];
+                if (enteredPin === expectedPin) {
+                    document.getElementById('header-user-info').classList.remove('hidden');
+                    document.getElementById('current-logged-user').innerText = `Logged in: ${selectedKid}`;
+                    evaluateKidTvAccess(selectedKid);
+                } else {
+                    document.getElementById('pin-error-msg').innerText = `Incorrect PIN for ${selectedKid}!`;
+                    enteredPin = "";
+                    updatePinDots();
+                }
+            }
+        }
+
         function evaluateKidTvAccess(kidName) {
             const yesterdayStr = getYesterdayDateStr();
             let yesterdayTotalMarks = 0;
@@ -362,8 +499,7 @@
             document.getElementById('screen-tv-active').classList.remove('hidden');
             document.getElementById('active-kid-greeting').innerText = `Enjoy your shows, ${kidName}!`;
 
-            // Check if timer already running for today or set to 60 mins
-            timerSecondsLeft = 60 * 60; // 60 minutes
+            timerSecondsLeft = 60 * 60; 
             sessionActive = true;
             if (timerInterval) clearInterval(timerInterval);
 
@@ -380,7 +516,6 @@
         }
 
         function minimizeToBackground() {
-            // On Android TV Webview / Browser, hiding elements lets other apps or home screen sit behind or can simulate background hiding.
             document.getElementById('screen-tv-active').classList.add('hidden');
         }
 
@@ -412,7 +547,7 @@
             if (pinInput === PARENT_PASSWORD) {
                 alert("Parent PIN Verified! Granting +30 minutes bonus time.");
                 document.getElementById('screen-tv-expired').classList.add('hidden');
-                timerSecondsLeft = 30 * 60; // +30 mins
+                timerSecondsLeft = 30 * 60; 
                 startTvSession(selectedKid || "Kid");
             } else if (pinInput !== null) {
                 alert("Incorrect Parent PIN!");
@@ -456,6 +591,7 @@
         }
 
         function logout() {
+            if (timerInterval) clearInterval(timerInterval);
             currentRole = null;
             selectedKid = null;
             enteredPin = "";
