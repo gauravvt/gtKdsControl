@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Routine & TV Locker - Android TV Edition</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* TV-focused styling and smooth transitions */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            overflow-x: hidden;
+            user-select: none;
+        }
+        .tv-focus:focus, .tv-focus.focused {
+            outline: 4px solid #6366f1 !important;
+            outline-offset: 4px !important;
+            transform: scale(1.03);
+            background-color: #312e81 !important;
+        }
+        .pin-dot {
+            transition: all 0.2s ease;
+        }
+        .pin-dot.active {
+            background-color: #6366f1;
+            transform: scale(1.2);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-8">
+
+    <!-- Top Bar / Header -->
+    <header class="flex items-center justify-between border-b border-slate-800 pb-6">
+        <div class="flex items-center gap-4">
+            <div class="bg-indigo-600 p-3 rounded-2xl shadow-lg text-white">
+                <i data-lucide="tv" class="w-8 h-8"></i>
+            </div>
+            <div>
+                <h1 class="text-2xl font-black tracking-wide text-white">Smart Family TV Locker</h1>
+                <p id="system-status" class="text-xs text-slate-400 font-medium">Connecting to Google Sheets Backend...</p>
+            </div>
+        </div>
+        <div id="header-user-info" class="hidden flex items-center gap-3 bg-slate-800/80 px-4 py-2 rounded-2xl border border-slate-700">
+            <span id="current-logged-user" class="text-sm font-bold text-indigo-400">Not Logged In</span>
+            <button onclick="logout()" class="tv-focus px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all">Logout</button>
+        </div>
+    </header>
+
+    <!-- Main View Area -->
+    <main class="my-auto max-w-5xl mx-auto w-full py-8">
+
+        <!-- SCREEN 1: Role Selection (Parent or Kid) -->
+        <div id="screen-role-select" class="space-y-8 text-center">
+            <div class="space-y-3">
+                <span class="px-3 py-1 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs font-bold rounded-full uppercase tracking-wider">Authentication Required</span>
+                <h2 class="text-3xl font-black text-white">Who is watching TV today?</h2>
+                <p class="text-sm text-slate-400">Use your TV remote (Arrow keys & OK/Enter) to select your profile.</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-6 max-w-2xl mx-auto pt-4">
+                <button onclick="selectRole('Parent')" class="tv-focus group p-8 bg-slate-800/90 hover:bg-indigo-900/50 border-2 border-slate-700 hover:border-indigo-500 rounded-3xl shadow-xl transition-all flex flex-col items-center gap-4 text-center cursor-pointer">
+                    <div class="w-20 h-20 bg-indigo-600/20 group-hover:bg-indigo-600 text-indigo-400 group-hover:text-white rounded-2xl flex items-center justify-center transition-all shadow-inner">
+                        <i data-lucide="shield-check" class="w-10 h-10"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-black text-white">Parents</h3>
+                        <p class="text-xs text-slate-400 mt-1">Admin access & settings</p>
+                    </div>
+                </button>
+
+                <button onclick="selectRole('Kid')" class="tv-focus group p-8 bg-slate-800/90 hover:bg-indigo-900/50 border-2 border-slate-700 hover:border-indigo-500 rounded-3xl shadow-xl transition-all flex flex-col items-center gap-4 text-center cursor-pointer">
+                    <div class="w-20 h-20 bg-amber-600/20 group-hover:bg-amber-600 text-amber-400 group-hover:text-white rounded-2xl flex items-center justify-center transition-all shadow-inner">
+                        <i data-lucide="smile" class="w-10 h-10"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-black text-white">Kids</h3>
+                        <p class="text-xs text-slate-400 mt-1">Ani & Avi TV Access</p>
+                    </div>
+                </button>
+            </div>
+        </div>
+
+        <!-- SCREEN 2: PIN / Password Entry -->
+        <div id="screen-pin-entry" class="hidden space-y-8 text-center max-w-md mx-auto">
+            <div class="space-y-2">
+                <button onclick="backToRoleSelect()" class="text-xs text-indigo-400 hover:text-indigo-300 font-bold flex items-center gap-1 mx-auto mb-4">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i> Back to Role Selection
+                </button>
+                <h2 id="pin-title" class="text-2xl font-black text-white">Enter PIN</h2>
+                <p id="pin-subtitle" class="text-xs text-slate-400">Please enter security password</p>
+            </div>
+
+            <!-- PIN Dot Indicators (4 digits) -->
+            <div class="flex justify-center gap-3 py-2">
+                <div id="pin-d1" class="pin-dot w-4 h-4 rounded-full bg-slate-700 border border-slate-600"></div>
+                <div id="pin-d2" class="pin-dot w-4 h-4 rounded-full bg-slate-700 border border-slate-600"></div>
+                <div id="pin-d3" class="pin-dot w-4 h-4 rounded-full bg-slate-700 border border-slate-600"></div>
+                <div id="pin-d4" class="pin-dot w-4 h-4 rounded-full bg-slate-700 border border-slate-600"></div>
+            </div>
+
+            <!-- On-Screen Virtual Numpad for TV Remotes -->
+            <div class="grid grid-cols-3 gap-3 bg-slate-800/80 p-5 rounded-3xl border border-slate-700 shadow-2xl">
+                <button onclick="appendPin('1')" class="tv-focus py-4 bg-slate-700 hover:bg-indigo-600 text-white font-black text-lg rounded-2xl transition-all">1</button>
+                <button onclick="appendPin('2')" class="tv-focus py-4 bg-slate-700 hover:bg-indigo-600 text-white font-black text-lg rounded-2xl transition-all">2</button>
+                <button onclick="appendPin('3')" class="tv-focus py-4 bg-slate-700 hover:bg-indigo-600 text-white font-black text-lg rounded-2xl transition-all">3</button>
+                <button onclick="appendPin('4')" class="tv-focus py-4 bg-slate-700 hover:bg-indigo-600 text-white font-black text-lg rounded-2xl transition-all">4</button>
+                <button onclick="appendPin('5')" class="tv-focus py-4 bg-slate-700 hover:bg-indigo-600 text-white font-black text-lg rounded-2xl transition-all">5</button>
+                <button onclick="appendPin('6')" class="tv-focus py-4 bg-slate-700 hover:bg-indigo-600 text-white font-black text-lg rounded-2xl transition-all">6</button>
+                <button onclick="appendPin('7')" class="tv-focus py-4 bg-slate-700 hover:bg-indigo-600 text-white font-black text-lg rounded-2xl transition-all">7</button>
+                <button onclick="appendPin('8')" class="tv-focus py-4 bg-slate-700 hover:bg-indigo-600 text-white font-black text-lg rounded-2xl transition-all">8</button>
+                <button onclick="appendPin('9')" class="tv-focus py-4 bg-slate-700 hover:bg-indigo-600 text-white font-black text-lg rounded-2xl transition-all">9</button>
+                <button onclick="clearPin()" class="tv-focus py-4 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white font-bold text-xs rounded-2xl transition-all">Clear</button>
+                <button onclick="appendPin('0')" class="tv-focus py-4 bg-slate-700 hover:bg-indigo-600 text-white font-black text-lg rounded-2xl transition-all">0</button>
+                <button onclick="backspacePin()" class="tv-focus py-4 bg-slate-700 hover:bg-indigo-600 text-white font-bold text-xs rounded-2xl transition-all">⌫</button>
+            </div>
+            <p id="pin-error-msg" class="text-xs font-bold text-rose-500 h-4"></p>
+        </div>
+
+        <!-- SCREEN 3: Kid Selection (Ani or Avi) -->
+        <div id="screen-kid-select" class="hidden space-y-8 text-center">
+            <div class="space-y-2">
+                <button onclick="backToRoleSelect()" class="text-xs text-indigo-400 hover:text-indigo-300 font-bold flex items-center gap-1 mx-auto mb-4">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i> Back to Role Selection
+                </button>
+                <h2 class="text-3xl font-black text-white">Who is logging in?</h2>
+                <p class="text-xs text-slate-400">Select your name to proceed to TV check.</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-6 max-w-xl mx-auto pt-4">
+                <button onclick="selectKidProfile('Avi')" class="tv-focus group p-8 bg-slate-800/90 hover:bg-indigo-900/50 border-2 border-slate-700 hover:border-indigo-500 rounded-3xl shadow-xl transition-all flex flex-col items-center gap-4 text-center cursor-pointer">
+                    <div class="w-20 h-20 bg-blue-600/20 group-hover:bg-blue-600 text-blue-400 group-hover:text-white rounded-2xl flex items-center justify-center transition-all shadow-inner text-2xl font-black">
+                        👦🏽
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-black text-white">Avi</h3>
+                        <p class="text-xs text-slate-400 mt-1">Enter Avi's PIN</p>
+                    </div>
+                </button>
+
+                <button onclick="selectKidProfile('Ani')" class="tv-focus group p-8 bg-slate-800/90 hover:bg-indigo-900/50 border-2 border-slate-700 hover:border-indigo-500 rounded-3xl shadow-xl transition-all flex flex-col items-center gap-4 text-center cursor-pointer">
+                    <div class="w-20 h-20 bg-emerald-600/20 group-hover:bg-emerald-600 text-emerald-400 group-hover:text-white rounded-2xl flex items-center justify-center transition-all shadow-inner text-2xl font-black">
+                        👦🏽
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-black text-white">Ani</h3>
+                        <p class="text-xs text-slate-400 mt-1">Enter Ani's PIN</p>
+                    </div>
+                </button>
+            </div>
+        </div>
+
+        <!-- SCREEN 4: TV Access Decision (Allowed vs Blocked) -->
+        <div id="screen-tv-decision" class="hidden space-y-8 text-center max-w-2xl mx-auto">
+            <div id="tv-decision-card" class="p-8 rounded-3xl border-2 shadow-2xl space-y-6">
+                <div id="tv-decision-icon" class="w-24 h-24 rounded-3xl flex items-center justify-center mx-auto shadow-lg">
+                    <!-- Icon injected dynamically -->
+                </div>
+                <div class="space-y-3">
+                    <h2 id="tv-decision-title" class="text-3xl font-black text-white">Checking status...</h2>
+                    <p id="tv-decision-desc" class="text-sm text-slate-300 leading-relaxed max-w-lg mx-auto">Evaluating yesterday's approved marks from Google Sheets backend...</p>
+                </div>
+                <div id="tv-stats-box" class="bg-slate-900/60 p-4 rounded-2xl border border-slate-700 inline-flex items-center gap-6 text-sm font-bold">
+                    <span>Yesterday Date: <strong id="stat-date" class="text-indigo-400">-</strong></span>
+                    <span>Approved Score: <strong id="stat-score" class="text-emerald-400">- / 30</strong></span>
+                </div>
+                <div class="pt-4 flex justify-center gap-4">
+                    <button id="tv-primary-action-btn" onclick="handleTvPrimaryAction()" class="tv-focus px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm rounded-2xl shadow-xl transition-all">Proceed to TV</button>
+                    <button onclick="logout()" class="tv-focus px-6 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm rounded-2xl transition-all">Switch User</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCREEN 4.5: Active TV Session & 1-Hour Countdown Overlay -->
+        <div id="screen-tv-active" class="hidden fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex flex-col items-center justify-center p-8 space-y-8 text-center">
+            <div class="bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                <i data-lucide="play-circle" class="w-4 h-4 animate-pulse"></i> TV Viewing Session Active
+            </div>
+            <div class="space-y-3">
+                <h2 id="active-kid-greeting" class="text-3xl font-black text-white">Enjoy your TV time!</h2>
+                <p class="text-sm text-slate-400 max-w-md mx-auto">The app has minimized into the background. You can watch your shows. Once your 1-hour quota expires, this locker will force itself to the foreground.</p>
+            </div>
+            
+            <!-- Live Timer Card -->
+            <div class="bg-slate-900 border-2 border-slate-800 p-8 rounded-3xl shadow-2xl space-y-4 w-full max-w-md">
+                <span class="text-xs font-bold text-slate-500 uppercase">Time Remaining Today</span>
+                <div id="countdown-display" class="text-5xl font-black text-emerald-400 tracking-wider">60:00</div>
+                <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden">
+                    <div id="timer-progress-bar" class="bg-emerald-500 h-full w-full transition-all duration-1000"></div>
+                </div>
+            </div>
+
+            <div class="flex gap-4">
+                <button onclick="minimizeToBackground()" class="tv-focus px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-2xl transition-all">Hide & Let TV Run</button>
+                <button onclick="logout()" class="tv-focus px-6 py-3 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white font-bold text-xs rounded-2xl transition-all">End Session</button>
+            </div>
+        </div>
+
+        <!-- SCREEN 4.6: Time Expired / Hard Lockout Overlay -->
+        <div id="screen-tv-expired" class="hidden fixed inset-0 z-50 bg-rose-950/95 backdrop-blur-xl flex flex-col items-center justify-center p-8 space-y-8 text-center">
+            <div class="w-24 h-24 bg-rose-600/30 text-rose-400 border-2 border-rose-500 rounded-3xl flex items-center justify-center shadow-2xl animate-bounce">
+                <i data-lucide="lock" class="w-12 h-12"></i>
+            </div>
+            <div class="space-y-3 max-w-lg">
+                <h2 class="text-4xl font-black text-white">Time's Up for Today! ⏰</h2>
+                <p class="text-base text-rose-200 leading-relaxed">Your 1-hour allocated TV time has finished. TV access is now locked. Unless a parent enters their PIN to grant bonus time, you cannot watch further today.</p>
+            </div>
+            <div class="flex gap-4">
+                <button onclick="promptParentBonusApproval()" class="tv-focus px-8 py-4 bg-white text-rose-950 font-black text-sm rounded-2xl shadow-2xl hover:bg-slate-100 transition-all flex items-center gap-2">
+                    <i data-lucide="shield-check" class="w-5 h-5"></i> Parent Bonus Approval Override
+                </button>
+                <button onclick="logout()" class="tv-focus px-6 py-4 bg-rose-900/50 hover:bg-rose-900 text-white font-bold text-sm rounded-2xl transition-all">Switch Profile</button>
+            </div>
+        </div>
+
+        <!-- SCREEN 5: Parent Dashboard / Admin View -->
+        <div id="screen-parent-dashboard" class="hidden space-y-6">
+            <div class="bg-slate-800/90 border border-slate-700 p-6 rounded-3xl flex items-center justify-between shadow-xl">
+                <div>
+                    <span class="px-2.5 py-1 bg-indigo-500/20 text-indigo-400 text-xs font-bold rounded-lg">Parent Admin Mode</span>
+                    <h2 class="text-2xl font-black text-white mt-1">Family TV Control & Analytics</h2>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="fetchSheetData()" class="tv-focus px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i> Sync Backend
+                    </button>
+                    <button onclick="logout()" class="tv-focus px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-xl transition-all">Logout</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Avi Status Card -->
+                <div class="bg-slate-800/90 border border-slate-700 p-6 rounded-3xl space-y-4 shadow-xl">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-black text-white flex items-center gap-2">👦🏽 Avi's Status</h3>
+                        <span id="parent-avi-status" class="px-3 py-1 text-xs font-bold rounded-xl bg-slate-700 text-slate-300">Checking...</span>
+                    </div>
+                    <div class="p-4 bg-slate-900/60 rounded-2xl space-y-2 text-xs">
+                        <div class="flex justify-between"><span class="text-slate-400">Yesterday's Score:</span> <strong id="parent-avi-yesterday" class="text-white">-</strong></div>
+                        <div class="flex justify-between"><span class="text-slate-400">Target Required:</span> <strong class="text-indigo-400">&ge; 25 Points</strong></div>
+                    </div>
+                    <button onclick="grantBonusTime('Avi')" class="tv-focus w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i> Grant +30 Min Bonus Time
+                    </button>
+                </div>
+
+                <!-- Ani Status Card -->
+                <div class="bg-slate-800/90 border border-slate-700 p-6 rounded-3xl space-y-4 shadow-xl">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-black text-white flex items-center gap-2">👦🏽 Ani's Status</h3>
+                        <span id="parent-ani-status" class="px-3 py-1 text-xs font-bold rounded-xl bg-slate-700 text-slate-300">Checking...</span>
+                    </div>
+                    <div class="p-4 bg-slate-900/60 rounded-2xl space-y-2 text-xs">
+                        <div class="flex justify-between"><span class="text-slate-400">Yesterday's Score:</span> <strong id="parent-ani-yesterday" class="text-white">-</strong></div>
+                        <div class="flex justify-between"><span class="text-slate-400">Target Required:</span> <strong class="text-indigo-400">&ge; 25 Points</strong></div>
+                    </div>
+                    <button onclick="grantBonusTime('Ani')" class="tv-focus w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i> Grant +30 Min Bonus Time
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer / TV Remote Instructions -->
+    <footer class="text-center text-xs text-slate-500 border-t border-slate-800 pt-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+        <p>Smart TV Daily Routine & TV Locker v1.0 • Google Sheets Backend Connected</p>
+        <p class="text-slate-400">💡 Tip: Use TV D-Pad / Arrow keys to navigate & OK button to select.</p>
+    </footer>
+
+    <script>
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz4mwiT8I69g9Uv2BVZUbETP3aS2-aSGUzLO5mpTPktFL95I45X_GigPACKQzKmIf5T/exec";
+
+        // Updated Passwords: 4 digits each for smooth entry
+        const PARENT_PASSWORD = "6202";
+        const KID_PASSWORDS = {
+            "Avi": "9812",
+            "Ani": "2468"
+        };
+
+        let currentRole = null; // 'Parent' or 'Kid'
+        let selectedKid = null; // 'Avi' or 'Ani'
+        let enteredPin = "";
+        let cloudRecords = [];
+
+        // Timer state variables
+        let timerSecondsLeft = 60 * 60; // 1 hour max default
+        let timerInterval = null;
+        let sessionActive = false;
+
+// ... existing code ... -->
+        function showScreen(screenId) {
+            ['screen-role-select', 'screen-pin-entry', 'screen-kid-select', 'screen-tv-decision', 'screen-parent-dashboard'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById('screen-tv-active').classList.add('hidden');
+            document.getElementById('screen-tv-expired').classList.add('hidden');
+
+            if (screenId !== 'active' && screenId !== 'expired') {
+                document.getElementById(screenId).classList.remove('hidden');
+            }
+            
+            setTimeout(() => {
+                const firstBtn = document.querySelector(`#${screenId} button, #${screenId} input`);
+                if (firstBtn) firstBtn.focus();
+                if (window.lucide) lucide.createIcons();
+            }, 50);
+        }
+// ... existing code ... -->
+        function evaluateKidTvAccess(kidName) {
+            const yesterdayStr = getYesterdayDateStr();
+            let yesterdayTotalMarks = 0;
+
+            cloudRecords.forEach(r => {
+                const k = String(r.KidName || r.childName || '').trim();
+                const d = String(r.Date || r.RoutineDate || '').substring(0, 10);
+                const status = String(r.Status || r.status || '').toLowerCase();
+                const marks = Number(r.Marks || r.marks || 0);
+
+                if (k.toLowerCase() === kidName.toLowerCase() && d === yesterdayStr && status.includes('approved')) {
+                    yesterdayTotalMarks += marks;
+                }
+            });
+
+            document.getElementById('stat-date').innerText = yesterdayStr;
+            document.getElementById('stat-score').innerText = `${yesterdayTotalMarks} / 30`;
+
+            const card = document.getElementById('tv-decision-card');
+            const icon = document.getElementById('tv-decision-icon');
+            const title = document.getElementById('tv-decision-title');
+            const desc = document.getElementById('tv-decision-desc');
+            const actionBtn = document.getElementById('tv-primary-action-btn');
+
+            if (yesterdayTotalMarks >= 25) {
+                card.className = "p-8 rounded-3xl border-2 border-emerald-500/50 bg-slate-900 shadow-2xl space-y-6";
+                icon.className = "w-24 h-24 bg-emerald-500/20 text-emerald-400 rounded-3xl flex items-center justify-center mx-auto shadow-lg";
+                icon.innerHTML = `<i data-lucide="tv" class="w-12 h-12"></i>`;
+                title.innerText = `🎉 TV Access Granted, ${kidName}!`;
+                desc.innerHTML = `Yesterday's approved score was <strong>${yesterdayTotalMarks} marks</strong> (&ge; 25). Click below to start your 1-hour viewing quota.`;
+                actionBtn.innerText = "Start 1-Hour TV Session 📺";
+                actionBtn.onclick = () => startTvSession(kidName);
+            } else {
+                card.className = "p-8 rounded-3xl border-2 border-rose-500/50 bg-slate-900 shadow-2xl space-y-6";
+                icon.className = "w-24 h-24 bg-rose-500/20 text-rose-400 rounded-3xl flex items-center justify-center mx-auto shadow-lg";
+                icon.innerHTML = `<i data-lucide="lock" class="w-12 h-12"></i>`;
+                title.innerText = `🔒 TV Access Locked, ${kidName}`;
+                desc.innerHTML = `Yesterday's approved score was only <strong>${yesterdayTotalMarks} marks</strong> (target is 25). TV is locked for today unless a parent grants bonus time.`;
+                actionBtn.innerText = "Parent Unlock Override";
+                actionBtn.onclick = () => promptParentBonusApproval();
+            }
+
+            showScreen('screen-tv-decision');
+        }
+
+        function startTvSession(kidName) {
+            document.getElementById('screen-tv-decision').classList.add('hidden');
+            document.getElementById('screen-tv-active').classList.remove('hidden');
+            document.getElementById('active-kid-greeting').innerText = `Enjoy your shows, ${kidName}!`;
+
+            // Check if timer already running for today or set to 60 mins
+            timerSecondsLeft = 60 * 60; // 60 minutes
+            sessionActive = true;
+            if (timerInterval) clearInterval(timerInterval);
+
+            timerInterval = setInterval(() => {
+                if (timerSecondsLeft > 0) {
+                    timerSecondsLeft--;
+                    updateTimerDisplay();
+                } else {
+                    clearInterval(timerInterval);
+                    sessionActive = false;
+                    triggerHardLockout();
+                }
+            }, 1000);
+        }
+
+        function minimizeToBackground() {
+            // On Android TV Webview / Browser, hiding elements lets other apps or home screen sit behind or can simulate background hiding.
+            document.getElementById('screen-tv-active').classList.add('hidden');
+        }
+
+        function updateTimerDisplay() {
+            const mins = Math.floor(timerSecondsLeft / 60);
+            const secs = timerSecondsLeft % 60;
+            const displayStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            document.getElementById('countdown-display').innerText = displayStr;
+
+            const percent = (timerSecondsLeft / (60 * 60)) * 100;
+            const bar = document.getElementById('timer-progress-bar');
+            if (bar) {
+                bar.style.width = `${percent}%`;
+                if (percent < 20) {
+                    bar.className = "bg-rose-500 h-full transition-all duration-1000";
+                    document.getElementById('countdown-display').className = "text-5xl font-black text-rose-400 tracking-wider animate-pulse";
+                }
+            }
+        }
+
+        function triggerHardLockout() {
+            document.getElementById('screen-tv-active').classList.add('hidden');
+            document.getElementById('screen-tv-expired').classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function promptParentBonusApproval() {
+            const pinInput = prompt("Parent PIN Required (6202) to grant bonus time or unlock:");
+            if (pinInput === PARENT_PASSWORD) {
+                alert("Parent PIN Verified! Granting +30 minutes bonus time.");
+                document.getElementById('screen-tv-expired').classList.add('hidden');
+                timerSecondsLeft = 30 * 60; // +30 mins
+                startTvSession(selectedKid || "Kid");
+            } else if (pinInput !== null) {
+                alert("Incorrect Parent PIN!");
+            }
+        }
+
+        function grantBonusTime(kidName) {
+            const pinInput = prompt(`Enter Parent PIN (6202) to give ${kidName} +30 mins bonus:`);
+            if (pinInput === PARENT_PASSWORD) {
+                alert(`Successfully granted +30 min bonus time for ${kidName}!`);
+                timerSecondsLeft += 30 * 60;
+            } else if (pinInput !== null) {
+                alert("Incorrect PIN!");
+            }
+        }
+
+        function evaluateParentDashboard() {
+            const yesterdayStr = getYesterdayDateStr();
+            ['Avi', 'Ani'].forEach(kid => {
+                let score = 0;
+                cloudRecords.forEach(r => {
+                    const k = String(r.KidName || r.childName || '').trim();
+                    const d = String(r.Date || r.RoutineDate || '').substring(0, 10);
+                    const status = String(r.Status || r.status || '').toLowerCase();
+                    const marks = Number(r.Marks || r.marks || 0);
+                    if (k.toLowerCase() === kid.toLowerCase() && d === yesterdayStr && status.includes('approved')) {
+                        score += marks;
+                    }
+                });
+
+                document.getElementById(`parent-${kid.toLowerCase()}-yesterday`).innerText = `${score} / 30 marks`;
+                const badge = document.getElementById(`parent-${kid.toLowerCase()}-status`);
+                if (score >= 25) {
+                    badge.innerText = "TV Unlocked ✔";
+                    badge.className = "px-3 py-1 text-xs font-bold rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+                } else {
+                    badge.innerText = "TV Locked 🔒";
+                    badge.className = "px-3 py-1 text-xs font-bold rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30";
+                }
+            });
+        }
+
+        function logout() {
+            currentRole = null;
+            selectedKid = null;
+            enteredPin = "";
+            document.getElementById('header-user-info').classList.add('hidden');
+            showScreen('screen-role-select');
+        }
+
+        function setupTvRemoteKeyboardListeners() {
+            document.addEventListener('keydown', (e) => {
+                const focusables = Array.from(document.querySelectorAll('.tv-focus:not(.hidden)'));
+                const activeEl = document.activeElement;
+                let currentIndex = focusables.indexOf(activeEl);
+
+                if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    currentIndex = (currentIndex + 1) % focusables.length;
+                    focusables[currentIndex]?.focus();
+                } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    currentIndex = (currentIndex - 1 + focusables.length) % focusables.length;
+                    focusables[currentIndex]?.focus();
+                }
+            });
+        }
+    </script>
+</body>
+</html>
